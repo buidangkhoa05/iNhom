@@ -7,6 +7,7 @@ import { Group, Trip, User } from '../types';
 import { Plus, ArrowLeft, Map, UserPlus, Users, Edit2, Check, X, Trash2 } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 import { useTranslation } from 'react-i18next';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export function GroupDetail() {
   const { groupId } = useParams<{ groupId: string }>();
@@ -29,6 +30,7 @@ export function GroupDetail() {
   
   const [isEditingName, setIsEditingName] = useState(false);
   const [editGroupName, setEditGroupName] = useState('');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     if (!groupId || !user) return;
@@ -179,13 +181,19 @@ export function GroupDetail() {
     }
   };
 
-  const handleDeleteGroup = async () => {
-    if (!groupId || !window.confirm(t('group.confirmDelete'))) return;
+  const handleDeleteGroup = () => {
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (!groupId) return;
     try {
       await deleteDoc(doc(db, 'groups', groupId));
       navigate('/');
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `groups/${groupId}`);
+    } finally {
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -193,6 +201,16 @@ export function GroupDetail() {
 
   return (
     <div className="space-y-8">
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        title={t('group.deleteGroup')}
+        message={t('group.confirmDelete')}
+        confirmText={t('common.delete', { defaultValue: 'Delete' })}
+        cancelText={t('common.cancel')}
+        onConfirm={confirmDeleteGroup}
+        onCancel={() => setIsDeleteModalOpen(false)}
+        isDestructive={true}
+      />
       <div className="flex items-center gap-4">
         <Link to="/" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
           <ArrowLeft className="w-5 h-5" />

@@ -9,6 +9,7 @@ import { calculateBalances, suggestSettlements, Transaction } from '../utils/set
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 import { useTranslation } from 'react-i18next';
 import { toPng } from 'html-to-image';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>();
@@ -29,7 +30,8 @@ export function TripDetail() {
   
   const [isEditingName, setIsEditingName] = useState(false);
   const [editTripName, setEditTripName] = useState('');
-  
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
   const [settlements, setSettlements] = useState<Transaction[]>([]);
   const [isBreakdownOpen, setIsBreakdownOpen] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -205,13 +207,19 @@ export function TripDetail() {
     }
   };
 
-  const handleDeleteTrip = async () => {
-    if (!tripId || !window.confirm(t('trip.confirmDelete'))) return;
+  const handleDeleteTrip = () => {
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteTrip = async () => {
+    if (!tripId) return;
     try {
       await deleteDoc(doc(db, 'trips', tripId));
       navigate(`/groups/${trip?.groupId}`);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `trips/${tripId}`);
+    } finally {
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -256,6 +264,16 @@ export function TripDetail() {
 
   return (
     <div className="space-y-8">
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        title={t('trip.deleteTrip')}
+        message={t('trip.confirmDelete')}
+        confirmText={t('common.delete', { defaultValue: 'Delete' })}
+        cancelText={t('common.cancel')}
+        onConfirm={confirmDeleteTrip}
+        onCancel={() => setIsDeleteModalOpen(false)}
+        isDestructive={true}
+      />
       <div className="flex items-center gap-4">
         <Link to={`/groups/${group.id}`} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
           <ArrowLeft className="w-5 h-5" />
