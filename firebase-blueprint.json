@@ -1,0 +1,73 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user's unique ID" },
+        "displayName": { "type": "string", "description": "The user's display name" },
+        "email": { "type": "string", "format": "email", "description": "The user's email address" },
+        "photoURL": { "type": "string", "format": "uri", "description": "The user's profile photo URL" }
+      },
+      "required": ["uid", "displayName", "email"]
+    },
+    "Group": {
+      "title": "Group",
+      "description": "A group of friends for outings",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "The name of the group" },
+        "createdBy": { "type": "string", "description": "The UID of the user who created the group" },
+        "members": { "type": "array", "items": { "type": "string" }, "description": "List of user UIDs in the group" },
+        "guestNames": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Map of guest IDs to their names" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the group was created" }
+      },
+      "required": ["name", "createdBy", "members", "createdAt"]
+    },
+    "Trip": {
+      "title": "Trip",
+      "description": "A specific outing or trip within a group",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "description": "The ID of the group this trip belongs to" },
+        "name": { "type": "string", "description": "The name of the trip" },
+        "createdBy": { "type": "string", "description": "The UID of the user who created the trip" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the trip was created" }
+      },
+      "required": ["groupId", "name", "createdBy", "createdAt"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "An expense incurred during a trip",
+      "type": "object",
+      "properties": {
+        "tripId": { "type": "string", "description": "The ID of the trip this expense belongs to" },
+        "description": { "type": "string", "description": "What the expense was for" },
+        "amount": { "type": "number", "description": "The total amount of the expense" },
+        "paidBy": { "type": "string", "description": "The UID of the user who paid" },
+        "splitAmong": { "type": "array", "items": { "type": "string" }, "description": "List of user UIDs who share this expense" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the expense was recorded" }
+      },
+      "required": ["tripId", "description", "amount", "paidBy", "splitAmong", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles"
+    },
+    "/groups/{groupId}": {
+      "schema": { "$ref": "#/entities/Group" },
+      "description": "Stores groups of friends"
+    },
+    "/trips/{tripId}": {
+      "schema": { "$ref": "#/entities/Trip" },
+      "description": "Stores trips within groups"
+    },
+    "/expenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/Expense" },
+      "description": "Stores expenses for trips"
+    }
+  }
+}

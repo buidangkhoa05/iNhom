@@ -1,0 +1,5 @@
+{
+  "name": "SplitEase",
+  "description": "A group expense splitting app that helps friends track shared costs and calculates the optimal way to settle debts.",
+  "requestFramePermissions": []
+}

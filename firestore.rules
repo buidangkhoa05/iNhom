@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+       return request.auth != null;
+    }
+    function isOwner(userId) {
+       return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isDocOwner() {
+       return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+    function uidUnchanged() {
+       return !('uid' in request.resource.data) ||
+         request.resource.data.uid == request.auth.uid;
+    }
+    function uidNotModified() {
+       return !('uid' in request.resource.data) ||
+         request.resource.data.uid == resource.data.uid;
+    }
+    function hasRequiredFields(fields) {
+       return request.resource.data.keys().hasAll(fields);
+    }
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    function isValidEmail(email) {
+       return email is string &&
+         email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    function isValidUrl(url) {
+       return url is string &&
+         (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+    function isValidList(list, maxSize) {
+      return list is list && list.size() <= maxSize;
+    }
+    function isPositive(field) {
+      return request.resource.data[field] is number && request.resource.data[field] > 0;
+    }
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['uid', 'displayName', 'email', 'photoURL']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('photoURL' in data) || (data.photoURL is string && isValidUrl(data.photoURL) && data.photoURL.size() < 1000));
+    }
+
+    function isValidGroup(data) {
+      return hasOnlyAllowedFields(['name', 'createdBy', 'members', 'guestNames', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() < 100 &&
+             isValidList(data.members, 100) &&
+             (!('guestNames' in data) || data.guestNames is map) &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidTrip(data) {
+      return hasOnlyAllowedFields(['groupId', 'name', 'createdBy', 'createdAt']) &&
+             data.groupId is string && data.groupId.size() > 0 && data.groupId.size() < 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() < 100 &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidExpense(data) {
+      return hasOnlyAllowedFields(['tripId', 'description', 'amount', 'paidBy', 'splitAmong', 'createdAt']) &&
+             data.tripId is string && data.tripId.size() > 0 && data.tripId.size() < 100 &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 500 &&
+             data.amount is number && data.amount > 0 &&
+             data.paidBy is string && data.paidBy.size() > 0 && data.paidBy.size() < 100 &&
+             isValidList(data.splitAmong, 100) && data.splitAmong.size() > 0 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isAuthenticated(); // Allow reading other users to add them to groups
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged();
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified();
+    }
+
+    match /groups/{groupId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.members;
+      allow create: if isAuthenticated() && isValidGroup(request.resource.data) && request.resource.data.createdBy == request.auth.uid && request.auth.uid in request.resource.data.members;
+      allow update: if isAuthenticated() && request.auth.uid in resource.data.members && isValidGroup(request.resource.data) && areImmutableFieldsUnchanged(['createdBy', 'createdAt']);
+    }
+
+    match /trips/{tripId} {
+      function isGroupMember(groupId) {
+        return request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+      }
+      allow read: if isAuthenticated() && isGroupMember(resource.data.groupId);
+      allow create: if isAuthenticated() && isValidTrip(request.resource.data) && request.resource.data.createdBy == request.auth.uid && isGroupMember(request.resource.data.groupId);
+      allow update: if isAuthenticated() && isGroupMember(resource.data.groupId) && isValidTrip(request.resource.data) && areImmutableFieldsUnchanged(['groupId', 'createdBy', 'createdAt']);
+    }
+
+    match /expenses/{expenseId} {
+      function isTripGroupMember(tripId) {
+        let groupId = get(/databases/$(database)/documents/trips/$(tripId)).data.groupId;
+        return request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
+      }
+      allow read: if isAuthenticated() && isTripGroupMember(resource.data.tripId);
+      allow create: if isAuthenticated() && isValidExpense(request.resource.data) && isTripGroupMember(request.resource.data.tripId);
+      allow update: if isAuthenticated() && isTripGroupMember(resource.data.tripId) && isValidExpense(request.resource.data) && areImmutableFieldsUnchanged(['tripId', 'createdAt']);
+      allow delete: if isAuthenticated() && isTripGroupMember(resource.data.tripId);
+    }
+  }
+}
