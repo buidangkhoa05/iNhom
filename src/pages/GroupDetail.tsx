@@ -31,6 +31,8 @@ export function GroupDetail() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editGroupName, setEditGroupName] = useState('');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleteTripModalOpen, setIsDeleteTripModalOpen] = useState(false);
+  const [tripToDelete, setTripToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!groupId || !user) return;
@@ -197,6 +199,23 @@ export function GroupDetail() {
     }
   };
 
+  const handleDeleteTrip = (tripId: string) => {
+    setTripToDelete(tripId);
+    setIsDeleteTripModalOpen(true);
+  };
+
+  const confirmDeleteTrip = async () => {
+    if (!tripToDelete) return;
+    try {
+      await deleteDoc(doc(db, 'trips', tripToDelete));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `trips/${tripToDelete}`);
+    } finally {
+      setIsDeleteTripModalOpen(false);
+      setTripToDelete(null);
+    }
+  };
+
   if (!group) return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
 
   return (
@@ -327,16 +346,28 @@ export function GroupDetail() {
           ) : (
             <div className="space-y-3">
               {trips.map(trip => (
-                <Link
-                  key={trip.id}
-                  to={`/trips/${trip.id}`}
-                  className="block bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">{trip.name}</h3>
-                    <span className="text-indigo-600 font-medium text-sm">{t('group.viewDetails')} &rarr;</span>
-                  </div>
-                </Link>
+                <div key={trip.id} className="relative group/trip">
+                  <Link
+                    to={`/trips/${trip.id}`}
+                    className="block bg-white p-5 rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-gray-900">{trip.name}</h3>
+                      <span className="text-indigo-600 font-medium text-sm">{t('group.viewDetails')} &rarr;</span>
+                    </div>
+                  </Link>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDeleteTrip(trip.id);
+                    }}
+                    className="absolute top-1/2 -translate-y-1/2 right-32 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover/trip:opacity-100"
+                    title={t('common.delete')}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -450,6 +481,16 @@ export function GroupDetail() {
           </div>
         </div>
       </div>
+      <ConfirmModal
+        isOpen={isDeleteTripModalOpen}
+        title={t('trip.deleteTrip')}
+        message={t('trip.confirmDelete')}
+        confirmText={t('common.delete', { defaultValue: 'Delete' })}
+        cancelText={t('common.cancel')}
+        onConfirm={confirmDeleteTrip}
+        onCancel={() => setIsDeleteTripModalOpen(false)}
+        isDestructive={true}
+      />
     </div>
   );
 }

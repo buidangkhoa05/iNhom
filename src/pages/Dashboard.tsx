@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { Group } from '../types';
-import { Plus, Users, ChevronRight } from 'lucide-react';
+import { Plus, Users, ChevronRight, Trash2 } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 import { useTranslation } from 'react-i18next';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -15,6 +16,8 @@ export function Dashboard() {
   const [isCreating, setIsCreating] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -61,6 +64,23 @@ export function Dashboard() {
       setIsCreating(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'groups');
+    }
+  };
+
+  const handleDeleteGroup = (groupId: string) => {
+    setGroupToDelete(groupId);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (!groupToDelete) return;
+
+    try {
+      await deleteDoc(doc(db, 'groups', groupToDelete));
+      setIsDeleteModalOpen(false);
+      setGroupToDelete(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `groups/${groupToDelete}`);
     }
   };
 
@@ -125,25 +145,48 @@ export function Dashboard() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map(group => (
-            <Link
-              key={group.id}
-              to={`/groups/${group.id}`}
-              className="group bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all flex flex-col h-full"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                  <Users className="w-6 h-6" />
+            <div key={group.id} className="relative group">
+              <Link
+                to={`/groups/${group.id}`}
+                className="block bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all flex flex-col h-full"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-indigo-500 transition-colors" />
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-indigo-500 transition-colors" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-1">{group.name}</h3>
-              <p className="text-sm text-gray-500 mt-auto">
-                {t('dashboard.members_one', { count: group.members.length, defaultValue: '{{count}} members' })}
-              </p>
-            </Link>
+                <h3 className="text-xl font-semibold text-gray-900 mb-1">{group.name}</h3>
+                <p className="text-sm text-gray-500 mt-auto">
+                  {t('dashboard.members_one', { count: group.members.length, defaultValue: '{{count}} members' })}
+                </p>
+              </Link>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDeleteGroup(group.id);
+                }}
+                className="absolute top-4 right-12 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                title={t('common.delete')}
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onCancel={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDeleteGroup}
+        title={t('group.deleteGroup')}
+        message={t('group.confirmDelete')}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        isDestructive={true}
+      />
     </div>
   );
 }
